@@ -17,8 +17,7 @@ from base64 import b64encode
 MSG_SIZE = 1500
 DATA_SIZE = 1000
 TIMEOUT = 30
-SEQUENCE = random.randomrange(2**32 - 1) # Figure out wrapping
-ACKNUM = 0
+SEQUENCE = random.randrange(2**32 - 1) # Figure out wrapping # 15
 
 # Bind to localhost and an ephemeral port
 IP_PORT = sys.argv[1]
@@ -37,17 +36,19 @@ def log(string):
 
 def send_next_packet():
   global SEQUENCE
-  global ACKNUM
 
   data = sys.stdin.buffer.read(DATA_SIZE)
   if (len(data) > 0):
     # print(str(b64encode(data)))
-    msg = json.dumps({"sequence": SEQUENCE, "data": b64encode(data).decode(), "acknum": ACKNUM, "ack": False, "eof": False})
+    msg = json.dumps({"sequence": SEQUENCE, "data": b64encode(data).decode(), "ack": False, "eof": False})
+
     if sock.sendto(msg.encode(), dest) < len(msg):
       log("[error] unable to fully send packet")
     else:
       log("[send data] " + str(SEQUENCE) + " (" + str(len(data)) + ")")
+    
     SEQUENCE = (SEQUENCE + len(data)) % (2**32 - 1)
+
     return True
   else:
     return False
@@ -72,6 +73,7 @@ while True:
         # Try to send next packet; break if no more data
         if (not send_next_packet()):
           break
+
     except (ValueError, KeyError, TypeError):
       log("[recv corrupt packet]")
   else:
