@@ -17,6 +17,7 @@ def log(string):
 
 MSG_SIZE = 1500
 TIMEOUT = 30
+SEQUENCE_NOS = []
 
 # Bind to localhost and an ephemeral port
 UDP_IP = "127.0.0.1"
@@ -49,22 +50,24 @@ while True:
 
       # If there is data, we accept it and print it out
       if (decoded['data']):
+            
+        
         data = b64decode(decoded['data'].encode())
         # If we receive data, we assume it's in-order
-
         # You will need to do much more here
-
         
-        log("[recv data] " + str(decoded['sequence']) + " (" + str(len(data)) + ") ACCEPTED (in-order)")
-        sys.stdout.buffer.write(data)
+        if decoded['sequence'] not in SEQUENCE_NOS:
+          SEQUENCE_NOS.append(decoded['sequence'])
+          log("[recv data] " + str(decoded['sequence']) + " (" + str(len(data)) + ") ACCEPTED (in-order)")
+          sys.stdout.buffer.write(data)
 
-      # Send back an ack to the sender
-      msg = json.dumps({"ack": decoded['sequence'] + len(data)})
-      log("ABOUT TO SEND " + msg)
-      sent = sock.sendto(msg.encode(), addr)
-      log("[sent] " + str(sent))
-      if sent < len(msg):
-        log("[error] unable to fully send packet")
+          # Send back an ack to the sender
+          msg = json.dumps({"ack": decoded['sequence'] + len(data)})
+          log("ABOUT TO SEND " + msg)
+          sent = sock.sendto(msg.encode(), addr)
+          log("[sent] " + str(sent))
+          if sent < len(msg):
+            log("[error] unable to fully send packet")
 
     except (ValueError, KeyError, TypeError) as e:
       log("[recv corrupt packet]")
