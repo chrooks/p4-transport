@@ -34,14 +34,14 @@ log("[bound] " + str(UDP_PORT))
 
 # Now listen for packets
 while True: 
-  # try:
-  #   result = sock.recvfrom(MSG_SIZE)
-  # except socket.timeout:
-  #   result = None 
-  result = sock.recvfrom(MSG_SIZE)
+  try:
+    result = sock.recvfrom(MSG_SIZE)
+  except socket.timeout:
+    result = None 
 
   # If nothing is ready, we hit the timeout
   if result:
+    log("successfully received something from sender")
     (data, addr) = result
 
     try:
@@ -63,19 +63,17 @@ while True:
 
         if new_packet or decoded['resend']:
           
+          log("[recv data] " + str(decoded['sequence']) + " (" + str(len(data)) + ") ACCEPTED (in-order)")
+          if decoded['resend']: 
+            log("     this is a retransmitted packet")
+          
           if new_packet:
             SEQUENCE_NOS.append(decoded['sequence'])
             log(f"adding {decoded['sequence']} to list of sequence numbers")
-          
-      
-
-          log("[recv data] " + str(decoded['sequence']) + " (" + str(len(data)) + ") ACCEPTED (in-order)")
-          if decoded['resend']: log("     this is a retransmitted packet")
-
-          sys.stdout.buffer.write(data)
+            sys.stdout.buffer.write(data)
 
           # Send back an ack to the sender
-          msg = json.dumps({"ack": decoded['sequence'] + len(data)})
+          msg = json.dumps({"ack": decoded['sequence'] + decoded['data length']})
           log("ABOUT TO SEND " + msg)
           sent = sock.sendto(msg.encode(), addr)
           log("[sent] " + str(sent))
