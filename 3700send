@@ -13,6 +13,7 @@ import random as random
 
 from base64 import b64encode
 
+OVERHEAD_SIZE = 336
 
 MSG_SIZE = 1500
 DATA_SIZE = 1000
@@ -53,18 +54,18 @@ def send_next_packet():
   log(f"=========== NEXT PACKET SEQ #: {SEQUENCE} ===========")
 
   data = b64encode(read_buffer()).decode()
-  log(f"Read in {len(data) - 336} B of data")
+  log(f"Read in { len(data) - OVERHEAD_SIZE if len(data) - OVERHEAD_SIZE > 0 else 0} B of data")
   if (len(data) > 0):
     # print(str(b64encode(data)))
 
     # Craft message
-    msg = {"sequence": SEQUENCE, "data": data, "ack": False, "eof": False, "resend": False, "data length": len(data) - 336}
+    msg = {"sequence": SEQUENCE, "data": data, "ack": False, "eof": False, "resend": False, "data length": len(data) - OVERHEAD_SIZE}
     SENT_PACKETS.append(msg)
     success = send_packet(msg)
   else:
     log("There is no more data to be read")
   if success:
-    SEQUENCE = SEQUENCE + len(data) - 336
+    SEQUENCE = SEQUENCE + len(data) - OVERHEAD_SIZE
   
   return success
 
@@ -112,6 +113,6 @@ while True:
     # sys.exit(-1)
 
 
-log("Sending eof message...")  
-sock.sendto(json.dumps({"eof": True, "data": "", "sequence": SEQUENCE, "ack": False}).encode(), dest)
-sys.exit(0)
+log("Sending eof message...")
+for ii in range(5): sock.sendto(json.dumps({"eof": True, "data": "", "sequence": SEQUENCE, "ack": False}).encode(), dest)
+# sys.exit(0)

@@ -16,7 +16,7 @@ def log(string):
   sys.stderr.write(datetime.datetime.now().strftime("%H:%M:%S.%f") + " 3700recv: " + string + "\n")
 
 MSG_SIZE = 1500
-TIMEOUT = 30
+TIMEOUT = 10
 SEQUENCE_NOS = []
 
 # Bind to localhost and an ephemeral port
@@ -86,5 +86,5 @@ while True:
       log("[recv corrupt packet]")
       raise e
   else:
-    log("[error] timeout")
+    log("[error] timed out before receiving data, something must've dropped (probably the eof msg)")
     sys.exit(-1)
