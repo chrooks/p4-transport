@@ -16,8 +16,9 @@ from base64 import b64encode
 
 MSG_SIZE = 1500
 DATA_SIZE = 1000
-TIMEOUT = 30
-SEQUENCE = random.randrange(2**32 - 1) # Figure out wrapping # 15
+TIMEOUT = 2
+SEQUENCE = random.randrange(2**32 - 1)
+SENT_PACKETS = []
 
 # Bind to localhost and an ephemeral port
 IP_PORT = sys.argv[1]
@@ -34,39 +35,64 @@ sock.settimeout(TIMEOUT)
 def log(string):
   sys.stderr.write(datetime.datetime.now().strftime("%H:%M:%S.%f") + " 3700send: " + string + "\n")
 
+def send_packet(msg):
+  packet = json.dumps(msg)
+  if sock.sendto(packet.encode(), dest) < len(packet):
+      log("[error] unable to fully send packet")
+      return False
+  else:
+    log("[send data] " + str(msg['sequence']) + " (" + str(len(msg['data'])) + ")")
+    return True
+      
+def read_buffer():
+  return sys.stdin.buffer.read(DATA_SIZE)
+
 def send_next_packet():
   global SEQUENCE
+  success = False
 
-  data = sys.stdin.buffer.read(DATA_SIZE)
+  data = b64encode(read_buffer()).decode()
+  log(f"Read in {len(data)} B of data")
   if (len(data) > 0):
     # print(str(b64encode(data)))
-    msg = json.dumps({"sequence": SEQUENCE, "data": b64encode(data).decode(), "ack": False, "eof": False})
 
-    if sock.sendto(msg.encode(), dest) < len(msg):
-      log("[error] unable to fully send packet")
-    else:
-      log("[send data] " + str(SEQUENCE) + " (" + str(len(data)) + ")")
-    
-    SEQUENCE = (SEQUENCE + len(data)) % (2**32 - 1)
+    # Craft message
+    msg = {"sequence": SEQUENCE, "data": data, "ack": False, "eof": False, "resend": False}
+    SENT_PACKETS.append(msg)
+    success = send_packet(msg)
+  
+  if success:
+    SEQUENCE = SEQUENCE + len(data)
+  
+  return success
 
-    return True
-  else:
-    return False
+def resend_last_packet():
+  prev_packet = SENT_PACKETS[-1]
+  prev_packet['resend'] = True
+
+  log(f"resending previous packet seq #: {prev_packet['sequence']}")
+  send_packet(prev_packet)
 
 # Send first packet
 send_next_packet()
 
 # Now read in data, send packets
 while True:
-  log("ABOUT TO SLEEP")
-  result = sock.recvfrom(MSG_SIZE)
+  log("WAITING FOR RECEIVER RESPONSE")
 
+  try:
+    result = sock.recvfrom(MSG_SIZE)
+  except socket.timeout:
+    result = None
+  
   if result:
     (data, addr) = result
     try:
       decoded = json.loads(data.decode())
       log("[recv pkt] " + str(decoded))
       log("[recv ack] " + str(decoded['ack']))
+
+      log(f"CURRENT SEQ #: {SEQUENCE}")
 
       # If there is an ack, send next packet
       if decoded['ack'] == SEQUENCE:
@@ -77,8 +103,9 @@ while True:
     except (ValueError, KeyError, TypeError):
       log("[recv corrupt packet]")
   else:
-    log("[error] timeout")
-    sys.exit(-1)
+    log("[error] timed out before receiver response, something must've dropped")
+    resend_last_packet()
+    # sys.exit(-1)
 
 sock.sendto(json.dumps({"eof": True, "data": "", "sequence": SEQUENCE, "ack": False}).encode(), dest)
 sys.exit(0)

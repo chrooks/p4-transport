@@ -33,7 +33,11 @@ UDP_PORT = sock.getsockname()[1]
 log("[bound] " + str(UDP_PORT))
 
 # Now listen for packets
-while True:
+while True: 
+  # try:
+  #   result = sock.recvfrom(MSG_SIZE)
+  # except socket.timeout:
+  #   result = None 
   result = sock.recvfrom(MSG_SIZE)
 
   # If nothing is ready, we hit the timeout
@@ -51,14 +55,23 @@ while True:
       # If there is data, we accept it and print it out
       if (decoded['data']):
             
-        
         data = b64decode(decoded['data'].encode())
         # If we receive data, we assume it's in-order
         # You will need to do much more here
         
-        if decoded['sequence'] not in SEQUENCE_NOS:
-          SEQUENCE_NOS.append(decoded['sequence'])
+        new_packet = decoded['sequence'] not in SEQUENCE_NOS
+
+        if new_packet or decoded['resend']:
+          
+          if new_packet:
+            SEQUENCE_NOS.append(decoded['sequence'])
+            log(f"adding {decoded['sequence']} to list of sequence numbers")
+          
+      
+
           log("[recv data] " + str(decoded['sequence']) + " (" + str(len(data)) + ") ACCEPTED (in-order)")
+          if decoded['resend']: log("     this is a retransmitted packet")
+
           sys.stdout.buffer.write(data)
 
           # Send back an ack to the sender
@@ -68,6 +81,8 @@ while True:
           log("[sent] " + str(sent))
           if sent < len(msg):
             log("[error] unable to fully send packet")
+        else:
+          log("got a duplicate packet, will not send ack")
 
     except (ValueError, KeyError, TypeError) as e:
       log("[recv corrupt packet]")
